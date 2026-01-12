@@ -9,10 +9,10 @@ from telegram.ext import (
 )
 
 # Ortam değişkenleri
-TOKEN = os.getenv("8444472609:AAGuvazsikXGTb262Hw9MBI15eZflh-dw-o")
+BOT_TOKEN = os.getenv("8444472609:AAGuvazsikXGTb262Hw9MBI15eZflh-dw-o")
 ADMIN_ID = os.getenv("8561815348")
 
-if not TOKEN:
+if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN bulunamadı (Environment Variable ekle)")
 
 if not ADMIN_ID:
@@ -42,7 +42,7 @@ async def forward_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_message))
