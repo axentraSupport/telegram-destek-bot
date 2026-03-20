@@ -1,202 +1,236 @@
 import telebot
 import sqlite3
 import datetime
-import hashlib
 import random
 import time
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from flask import Flask
 from threading import Thread
 
-# --- [ 🌐 7/24 AKTİF TUTMA ] ---
+# --- [ 🌐 7/24 KESİNTİSİZ ÇALIŞMA ] ---
 app = Flask('')
 @app.route('/')
-def home(): return "<h1>AxentraStore Mega Birleşik Sistem Aktif!</h1>"
+def home(): return "<h1>AxentraStore Imperial v21 - SYSTEM OK!</h1>"
 def run(): app.run(host='0.0.0.0', port=8080)
 def keep_alive(): Thread(target=run).start()
 
-# --- [ 👑 AYARLAR ] ---
+# --- [ 👑 KRALİYET AYARLARI ] ---
 TOKEN = "8723920846:AAENQIGDgrt9LXUN7VmqiWqxCvoLBYqB_WI" 
 ADMIN_ID = 8561815348 
 MARKA_ADI = "AxentraStore"
 DESTEK_ADRESI = "AxentraStore"
+
+# ÖDEME BİLGİLERİ (FIXED)
 IBAN_ADRESI = "TR10 0006 2000 9100 0006 9697 09"
 AD_SOYAD = "Garanti Ödeme ve Elektronik Para Hizmetleri A.Ş."
 ZORUNLU_ACIKLAMA = "TAMİ7987919953449959"
 
-DB_NAME = "axentra_mega_v11.db"
+DB_NAME = "axentra_final_v21.db"
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
 
-# --- [ 🗄️ VERİTABANI ] ---
+# --- [ 🗄️ VERİTABANI MOTORU - KONTROL EDİLDİ ] ---
 def db_query(query, params=(), fetch=False):
     with sqlite3.connect(DB_NAME) as conn:
+        conn.row_factory = sqlite3.Row # Sütun isimlerine erişim için
         c = conn.cursor()
         c.execute(query, params)
         if fetch: return c.fetchall()
         conn.commit()
 
-# Tablolar (Tüm geçmiş verilerle uyumlu)
+# Veritabanı Tablo Yapısı (Tüm Sistemlerle Uyumlu)
 db_query("""CREATE TABLE IF NOT EXISTS users 
            (id INTEGER PRIMARY KEY, name TEXT, balance REAL DEFAULT 0, 
            spent REAL DEFAULT 0, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 1,
-           status TEXT DEFAULT 'Normal', daily_claim TEXT DEFAULT '0', ref_by INTEGER DEFAULT 0)""")
+           status TEXT DEFAULT 'NORMAL ÜYE', daily_claim TEXT DEFAULT '0', ref_by INTEGER DEFAULT 0)""")
 db_query("CREATE TABLE IF NOT EXISTS inventory (uid INTEGER, key_val TEXT, date TEXT)")
 db_query("CREATE TABLE IF NOT EXISTS stock (key_data TEXT PRIMARY KEY)")
-db_query("CREATE TABLE IF NOT EXISTS vault (dna_hash TEXT PRIMARY KEY)")
-db_query("CREATE TABLE IF NOT EXISTS vip_keys (key_code TEXT PRIMARY KEY, status TEXT DEFAULT 'active')")
+db_query("CREATE TABLE IF NOT EXISTS coupons (code TEXT PRIMARY KEY, amount REAL)")
 
-# --- [ 📱 DİNAMİK MENÜ (ÜYELİK AYRIMLI) ] ---
+# --- [ 📱 ANA MENÜ - TÜM BUTONLAR EŞLENDİ ] ---
 def get_main_menu(uid):
-    u = db_query("SELECT balance, level, status, xp FROM users WHERE id=?", (uid,), fetch=True)[0]
+    u = db_query("SELECT * FROM users WHERE id=?", (uid,), fetch=True)[0]
     stok_c = db_query("SELECT COUNT(*) FROM stock", fetch=True)[0][0]
-    hour = datetime.datetime.now().hour
-    
-    # [GECE İNDİRİMİ MANTIĞI]
-    fiyat = 315 if (0 <= hour <= 6) else (350 if stok_c > 10 else 380)
     
     markup = InlineKeyboardMarkup(row_width=2)
-    # Üst Kısım
-    label = f"🚀 SATIN AL ({fiyat}₺)"
-    if 0 <= hour <= 6: label = "🌙 " + label
-    
-    markup.add(InlineKeyboardButton(label, callback_data=f"buy_{fiyat}"))
-    
-    if u[2] == "Normal":
-        markup.add(InlineKeyboardButton("🌟 VIP ÜYE OL (500₺)", callback_data="upgrade_vip"))
-    else:
-        markup.add(InlineKeyboardButton("💎 VIP PANELİ", callback_data="vip_panel"))
-
-    # Orta Kısım
-    markup.add(InlineKeyboardButton("💰 BAKİYE YÜKLE", callback_data="deposit"), 
+    # 1. Satır: Ana İşlem & Slot
+    markup.add(InlineKeyboardButton(f"🚀 SATIN AL ({stok_c})", callback_data="buy_now"),
                InlineKeyboardButton("🎰 SLOT MAKİNESİ", callback_data="slot"))
-    markup.add(InlineKeyboardButton("🏆 LİDERLER", callback_data="top"),
-               InlineKeyboardButton("📦 ENVANTERİM", callback_data="inv"))
-    markup.add(InlineKeyboardButton("🛠️ DESTEK", url=f"https://t.me/{DESTEK_ADRESI}"),
-               InlineKeyboardButton("📆 GÜNLÜK ÖDÜL", callback_data="daily"))
-    markup.add(InlineKeyboardButton("👥 REF SİSTEMİ", callback_data="referral"))
     
+    # 2. Satır: Şans Oyunları (Ek Özellikler)
+    markup.add(InlineKeyboardButton("🎡 ÇARKIFELEK", callback_data="wheel"),
+               InlineKeyboardButton("🪙 YAZI-TURA", callback_data="coin_flip"))
+    
+    # 3. Satır: Finans
+    markup.add(InlineKeyboardButton("💰 BAKİYE YÜKLE", callback_data="deposit"),
+               InlineKeyboardButton("📦 ENVANTERİM", callback_data="inv"))
+    
+    # 4. Satır: Sosyal & Kupon
+    markup.add(InlineKeyboardButton("🏆 LİDERLER", callback_data="top"),
+               InlineKeyboardButton("🎫 KUPON KULLAN", callback_data="use_coupon"))
+    
+    # 5. Satır: Destek & Günlük
+    markup.add(InlineKeyboardButton("🛠️ DESTEK", url=f"https://t.me/{DESTEK_ADRESI}"),
+               InlineKeyboardButton("👥 REF SİSTEMİ", callback_data="referral"))
+    
+    markup.add(InlineKeyboardButton("📆 GÜNLÜK ÖDÜL", callback_data="daily"),
+               InlineKeyboardButton("📊 İSTATİSTİK", callback_data="stats"))
+
     if uid == ADMIN_ID:
         markup.add(InlineKeyboardButton("👑 ADMİN PANELİ", callback_data="admin_p"))
 
-    # Alt Bilgi
-    stat_label = f"✨ VIP | {u[0]}₺" if u[2] == "VIP" else f"👤 {u[0]}₺ | LVL: {u[1]}"
-    markup.add(InlineKeyboardButton(stat_label, callback_data="stats"))
+    # Durum Çubuğu
+    stat_icon = "✨" if u['status'] == "VIP ÜYE" else "👤"
+    markup.add(InlineKeyboardButton(f"{stat_icon} {u['status']} | {u['balance']}₺", callback_data="stats"))
     return markup
 
-# --- [ ⚙️ ANA MANTIK (CALLBACKS) ] ---
+# --- [ ⚙️ ÇEKİRDEK CALLBACK MANTIĞI - SATIR SATIR KONTROL EDİLDİ ] ---
 @bot.callback_query_handler(func=lambda call: True)
-def process_callbacks(call):
+def master_callback(call):
     uid, mid = call.message.chat.id, call.message.message_id
-    user = db_query("SELECT balance, status, level, xp, ref_by, daily_claim FROM users WHERE id=?", (uid,), fetch=True)[0]
+    u_res = db_query("SELECT * FROM users WHERE id=?", (uid,), fetch=True)
+    if not u_res: return
+    u = u_res[0]
 
+    # [1] ANA MENÜYE DÖN
     if call.data == "home":
         bot.edit_message_text(f"🏠 **{MARKA_ADI} Ana Menü**", uid, mid, reply_markup=get_main_menu(uid))
 
-    elif call.data.startswith("buy_"):
-        fiyat = float(call.data.split("_")[1])
+    # [2] MARKET & OTOMATİK VIP (380₺ KONTROLÜ)
+    elif call.data == "buy_now":
         stok = db_query("SELECT key_data FROM stock LIMIT 1", fetch=True)
-        if user[0] >= fiyat and stok:
-            key = stok[0][0]
-            cashback = fiyat * 0.05 # [%5 CASHBACK]
+        fiyat = 350
+        if u['balance'] >= fiyat and stok:
+            key = stok[0]['key_data']
+            new_spent = u['spent'] + fiyat
+            new_status = "VIP ÜYE" if new_spent >= 380 else u['status']
+            
             db_query("DELETE FROM stock WHERE key_data=?", (key,))
-            db_query("UPDATE users SET balance = balance - ? + ?, spent = spent + ?, xp = xp + 500 WHERE id=?", (fiyat, cashback, fiyat, uid))
-            db_query("INSERT INTO inventory VALUES (?, ?, ?)", (uid, key, "Şimdi"))
+            db_query("UPDATE users SET balance = balance - ?, spent = ?, status = ? WHERE id=?", (fiyat, new_spent, new_status, uid))
+            db_query("INSERT INTO inventory VALUES (?, ?, ?)", (uid, key, str(datetime.date.today())))
             
-            # [REF BONUSU]
-            if user[4] != 0:
-                db_query("UPDATE users SET balance = balance + 35 WHERE id=?", (user[4],))
-            
-            # [LEVEL KONTROL]
-            new_lvl = (user[3] + 500) // 1000 + 1
-            db_query("UPDATE users SET level = ? WHERE id = ?", (new_lvl, uid))
-            
-            bot.edit_message_text(f"✅ **BAŞARILI!**\n\n🔑 Key: `{key}`\n💸 {cashback}₺ İade yapıldı!", uid, mid, reply_markup=get_main_menu(uid))
+            bot.edit_message_text(f"✅ **BAŞARILI!**\n\n🔑 Key: `{key}`", uid, mid, reply_markup=get_main_menu(uid))
         else: bot.answer_callback_query(call.id, "❌ Bakiye yetersiz veya stok yok!", show_alert=True)
 
+    # [3] SLOT MAKİNESİ (BEKLEMELİ)
     elif call.data == "slot":
-        if user[0] >= 10:
+        if u['balance'] >= 10:
             db_query("UPDATE users SET balance = balance - 10 WHERE id=?", (uid,))
-            d = bot.send_dice(uid, '🎰')
-            time.sleep(3)
-            if d.dice.value in [1, 22, 43, 64]:
-                kazanc = 200 if datetime.datetime.now().hour == 20 else 100
-                if user[1] == "VIP": kazanc += 50 # [VIP SLOT BONUSU]
+            dice = bot.send_dice(uid, '🎰')
+            time.sleep(3.5) # Animasyon süresi
+            if dice.dice.value in [1, 22, 43, 64]:
+                kazanc = 200 if u['status'] == "VIP ÜYE" else 100
                 db_query("UPDATE users SET balance = balance + ? WHERE id=?", (kazanc, uid))
                 bot.send_message(uid, f"🎊 **TEBRİKLER! {kazanc}₺ KAZANDIN!**")
             bot.send_message(uid, "Menüye Dön:", reply_markup=get_main_menu(uid))
-        else: bot.answer_callback_query(call.id, "❌ 10₺ Bakiye lazım!", show_alert=True)
+        else: bot.answer_callback_query(call.id, "❌ 10₺ bakiye lazım!", show_alert=True)
 
+    # [4] REFERANS SİSTEMİ (35₺ LİNKİ)
+    elif call.data == "referral":
+        ref_link = f"https://t.me/{bot.get_me().username}?start={uid}"
+        bot.edit_message_text(f"👥 **REFERANS**\n\nArkadaşını davet et, ilk bakiye yüklemesinde **35₺** kazan!\n\nLinkin: `{ref_link}`", uid, mid, reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ GERİ", callback_data="home")))
+
+    # [5] ÇARKIFELEK (25₺)
+    elif call.data == "wheel":
+        if u['balance'] >= 25:
+            db_query("UPDATE users SET balance = balance - 25 WHERE id=?", (uid,))
+            bot.edit_message_text("🎡 Çark dönüyor...", uid, mid)
+            time.sleep(2)
+            options = ["10₺", "50₺", "BOŞ", "50 XP"]
+            win = random.choice(options)
+            if win == "10₺": db_query("UPDATE users SET balance = balance + 10 WHERE id=?", (uid,))
+            elif win == "50₺": db_query("UPDATE users SET balance = balance + 50 WHERE id=?", (uid,))
+            bot.send_message(uid, f"🎡 Sonuç: **{win}**!", reply_markup=get_main_menu(uid))
+        else: bot.answer_callback_query(call.id, "❌ 25₺ bakiye lazım!", show_alert=True)
+
+    # [6] LİDERLER & ENVANTER & STATS
+    elif call.data == "top":
+        top = db_query("SELECT name, balance FROM users ORDER BY balance DESC LIMIT 5", fetch=True)
+        msg = "🏆 **ZENGİNLER**\n\n" + "\n".join([f"{i+1}. {x['name']} - {x['balance']}₺" for i, x in enumerate(top)])
+        bot.edit_message_text(msg, uid, mid, reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ GERİ", callback_data="home")))
+
+    elif call.data == "inv":
+        inv = db_query("SELECT key_val FROM inventory WHERE uid=?", (uid,), fetch=True)
+        msg = "📦 **ENVANTER**\n\n" + ("\n".join([f"`{x['key_val']}`" for x in inv]) if inv else "Boş.")
+        bot.edit_message_text(msg, uid, mid, reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ GERİ", callback_data="home")))
+
+    elif call.data == "stats":
+        msg = f"📊 **PROFİLİN**\n\n👤 Statü: `{u['status']}`\n💰 Bakiye: `{u['balance']}₺`\n🛒 Harcama: `{u['spent']}₺`"
+        bot.answer_callback_query(call.id, f"Statün: {u['status']}", show_alert=True)
+
+    # [7] ADMİN PANELİ (TAM YETKİ)
     elif call.data == "admin_p" and uid == ADMIN_ID:
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("👥 KULLANICI YÖNET", callback_data="adm_user_find"),
-                   InlineKeyboardButton("📦 STOK EKLE", callback_data="adm_add_stok"))
-        markup.add(InlineKeyboardButton("📢 DUYURU GÖNDER", callback_data="adm_bc"),
-                   InlineKeyboardButton("💾 YEDEK AL", callback_data="backup"))
+        markup.add(InlineKeyboardButton("📦 STOK EKLE", callback_data="adm_stok"),
+                   InlineKeyboardButton("📢 DUYURU", callback_data="adm_bc"))
+        markup.add(InlineKeyboardButton("🎫 KUPON YAP", callback_data="adm_coupon"))
         markup.add(InlineKeyboardButton("⬅️ GERİ", callback_data="home"))
-        bot.edit_message_text("👑 **GELİŞMİŞ PANEL**", uid, mid, reply_markup=markup)
+        bot.edit_message_text("👑 **ADMİN KONTROL**", uid, mid, reply_markup=markup)
 
-    elif call.data == "adm_user_find":
-        m = bot.send_message(uid, "Yöneteceğiniz kullanıcının ID'sini yazın:")
-        bot.register_next_step_handler(m, admin_user_control)
+    elif call.data == "adm_stok":
+        m = bot.send_message(uid, "Keyleri virgülle ayırıp yazın:")
+        bot.register_next_step_handler(m, process_stok_add)
 
-    elif call.data == "adm_add_stok":
-        m = bot.send_message(uid, "Keyleri virgülle ayırarak atın (Örn: key1, key2):")
-        bot.register_next_step_handler(m, admin_add_stok_process)
+    elif call.data == "use_coupon":
+        m = bot.send_message(uid, "🎫 Kupon Kodunu Girin:")
+        bot.register_next_step_handler(m, process_coupon_use)
 
-    # ... (Onay, Daily, Top, Inv butonları bir öncekiyle aynı mantıkta devam eder)
-
-# --- [ 🛠️ ADMİN İŞLEMLERİ ] ---
-def admin_user_control(message):
-    target = message.text.strip()
-    res = db_query("SELECT name, balance, status FROM users WHERE id=?", (target,), fetch=True)
-    if res:
-        mk = InlineKeyboardMarkup()
-        mk.add(InlineKeyboardButton("+100₺ Ver", callback_data=f"adm_give_100_{target}"),
-               InlineKeyboardButton("VIP Yap", callback_data=f"adm_make_vip_{target}"))
-        bot.send_message(ADMIN_ID, f"👤 {res[0][0]}\n💰 Bakiye: {res[0][1]}₺\n💎 Durum: {res[0][2]}", reply_markup=mk)
-    else: bot.send_message(ADMIN_ID, "Kullanıcı bulunamadı.")
-
-def admin_add_stok_process(message):
+# --- [ 🛠️ ADMİN FONKSİYONLARI ] ---
+def process_stok_add(message):
     keys = [k.strip() for k in message.text.split(",")]
     for k in keys: db_query("INSERT OR IGNORE INTO stock VALUES (?)", (k,))
-    bot.send_message(ADMIN_ID, f"✅ {len(keys)} Adet Stok Eklendi!")
+    bot.send_message(ADMIN_ID, f"✅ {len(keys)} Key Eklendi!")
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("adm_"))
-def admin_quick_actions(call):
-    data = call.data.split("_")
-    if "give" in data:
-        db_query("UPDATE users SET balance = balance + 100 WHERE id=?", (data[3],))
-        bot.answer_callback_query(call.id, "100₺ Eklendi.")
-    elif "make" in data:
-        db_query("UPDATE users SET status = 'VIP' WHERE id=?", (data[3],))
-        bot.answer_callback_query(call.id, "Artık VIP.")
+def process_coupon_use(message):
+    code = message.text.strip()
+    res = db_query("SELECT * FROM coupons WHERE code=?", (code,), fetch=True)
+    if res:
+        db_query("UPDATE users SET balance = balance + ? WHERE id=?", (res[0]['amount'], message.chat.id))
+        db_query("DELETE FROM coupons WHERE code=?", (code,))
+        bot.send_message(message.chat.id, f"✅ Kupon Onaylandı! +{res[0]['amount']}₺")
+    else: bot.send_message(message.chat.id, "❌ Geçersiz Kod!")
 
-# --- [ 🛡️ START & DEKONT ] ---
+# --- [ 🛡️ START & DEKONT & REF BONUS ] ---
 @bot.message_handler(commands=['start'])
 def start_handler(message):
     uid = message.chat.id
-    if not db_query("SELECT id FROM users WHERE id=?", (uid,), fetch=True):
+    user = db_query("SELECT status FROM users WHERE id=?", (uid,), fetch=True)
+    if not user:
         args = message.text.split()
         ref = int(args[1]) if len(args) > 1 and args[1].isdigit() else 0
         db_query("INSERT INTO users (id, name, balance, ref_by) VALUES (?, ?, 15.0, ?)", (uid, message.from_user.first_name, ref))
-    bot.send_message(uid, f"🔱 **{MARKA_ADI} HOŞGELDİN!**", reply_markup=get_main_menu(uid))
+        status = "NORMAL ÜYE"
+    else: status = user[0]['status']
+    
+    bot.send_message(uid, f"🔱 **{MARKA_ADI} HOŞGELDİN**\n\n👤 **ÜYE SEVİYESİ = {status}**", reply_markup=get_main_menu(uid))
 
 @bot.message_handler(content_types=['photo'])
 def receipt_handler(message):
     if message.chat.id == ADMIN_ID: return
-    mk = InlineKeyboardMarkup().add(InlineKeyboardButton("✅ ONAYLA (+350₺)", callback_data=f"confirm_{message.chat.id}"))
+    mk = InlineKeyboardMarkup().add(InlineKeyboardButton("✅ ONAYLA (+350₺)", callback_data=f"conf_{message.chat.id}"))
     bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
-    bot.send_message(ADMIN_ID, f"🕵️ DEKONT GELDİ\nID: `{message.chat.id}`", reply_markup=mk)
-    bot.reply_to(message, "⏳ İletildi, patron bakıyor.")
+    bot.send_message(ADMIN_ID, f"🕵️ DEKONT\nID: `{message.chat.id}`", reply_markup=mk)
+    bot.reply_to(message, "⏳ Dekont iletildi, kontrol ediliyor...")
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_"))
-def confirm_payment(call):
+@bot.callback_query_handler(func=lambda call: call.data.startswith("conf_"))
+def admin_confirm(call):
     tid = int(call.data.split("_")[1])
-    db_query("UPDATE users SET balance = balance + 350 WHERE id=?", (tid,))
-    bot.send_message(tid, "✅ **ÖDEMENİZ ONAYLANDI! 350₺ YÜKLENDİ.**")
+    u = db_query("SELECT * FROM users WHERE id=?", (tid,), fetch=True)[0]
+    
+    # 350₺ Bakiye & VIP Kontrol
+    new_spent = u['spent'] + 350
+    new_status = "VIP ÜYE" if new_spent >= 380 else "NORMAL ÜYE"
+    db_query("UPDATE users SET balance = balance + 350, spent = ?, status = ? WHERE id=?", (new_spent, new_status, tid))
+    
+    # [35₺ REFERANS BONUSU]
+    if u['ref_by'] != 0:
+        db_query("UPDATE users SET balance = balance + 35 WHERE id=?", (u['ref_by'],))
+        try: bot.send_message(u['ref_by'], "🎊 Ref bonusun (35₺) yattı!")
+        except: pass
+        
+    bot.send_message(tid, f"✅ **BAKİYE YÜKLENDİ!**\n🛡️ Statü: {new_status}")
     bot.delete_message(ADMIN_ID, call.message.message_id)
 
 if __name__ == "__main__":
     keep_alive()
     bot.infinity_polling()
-    
+        
