@@ -5,21 +5,22 @@ from flask import Flask
 # --- 🌐 SERVER ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return "AXENTRA V7000 FINAL BOSS IS ONLINE 🚀"
+def home(): return "AXENTRA V11K FINAL BOSS IS ONLINE 🚀"
 
 def run_flask(): 
     app.run(host='0.0.0.0', port=8080)
 
-# --- 👑 AYARLAR ---
+# --- 👑 KRİTİK AYARLAR ---
 TOKEN = "8723920846:AAEVvBVge4VRrEmzGPcmBmYd9LlFqZvoNz4"
 ADMIN = 8561815348 
+CHANNEL_ID = -1002345678901 # <--- VIP KANAL ID'SİNİ BURAYA YAZ KANKA
 ALICI_AD = "Garanti Ödeme ve Elektronik Para Hizmetleri A.Ş."
 ACIKLAMA_KODU = "TAMİ7987919953449959"
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
 
-# --- 🗄️ DATABASE MOTORU (GÜÇLENDİRİLMİŞ) ---
+# --- 🗄️ DATABASE MOTORU ---
 def db_exe(q, p=(), f=0):
-    db_path = "axentra_final_v7.db"
+    db_path = "axentra_final_v11.db"
     conn = sqlite3.connect(db_path, timeout=30)
     try:
         cur = conn.cursor()
@@ -29,13 +30,13 @@ def db_exe(q, p=(), f=0):
     except Exception as e: print(f"DB Hatası: {e}")
     finally: conn.close()
 
-# Tabloları oluştur
-db_exe("CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY, balance REAL DEFAULT 100, xp INT DEFAULT 0, ref_by INT DEFAULT 0)")
+# Tablolar
+db_exe("CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY, balance REAL DEFAULT 100, is_vip INT DEFAULT 0, xp INT DEFAULT 0, ref_by INT DEFAULT 0)")
 db_exe("CREATE TABLE IF NOT EXISTS stock (k TEXT UNIQUE)") 
 db_exe("CREATE TABLE IF NOT EXISTS inv (uid INT, k TEXT)")
 db_exe("CREATE TABLE IF NOT EXISTS coupons (code TEXT PRIMARY KEY, amount REAL, uses INT)")
 
-# Stok kontrolü (Yoksa 100 tane ekle)
+# Stok Otomasyonu
 if not db_exe("SELECT k FROM stock", f=1):
     for _ in range(100):
         k = "AX-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=10))
@@ -43,16 +44,17 @@ if not db_exe("SELECT k FROM stock", f=1):
 
 # --- 📱 ANA MENÜ ---
 def main_menu(id):
-    u_data = db_exe("SELECT balance, xp FROM users WHERE id=?", (id,), 1)
+    u_data = db_exe("SELECT balance, is_vip, xp FROM users WHERE id=?", (id,), 1)
     if not u_data:
         db_exe("INSERT OR IGNORE INTO users (id, balance) VALUES (?,?)", (id, 100.0))
-        u_data = [(100.0, 0)]
+        u_data = [(100.0, 0, 0)]
     
-    bal, xp = u_data[0]
+    bal, vip, xp = u_data[0]
     st = len(db_exe("SELECT k FROM stock", f=1))
+    tag = "💎 VIP" if vip else "👤 ÜYE"
     
     m = InlineKeyboardMarkup(row_width=2)
-    m.add(InlineKeyboardButton(f"🚀 SATIN AL (350₺) [Stok: {st}]", callback_data="buy"))
+    m.add(InlineKeyboardButton(f"🚀 VIP KEY SATIN AL (350₺) [Stok: {st}]", callback_data="buy"))
     m.add(InlineKeyboardButton("🎰 SLOT", callback_data="g_slot"), InlineKeyboardButton("🔴 RULET", callback_data="g_roul"))
     m.add(InlineKeyboardButton("🪙 YAZI-TURA", callback_data="g_coin"), InlineKeyboardButton("🎡 ÇARKIFELEK", callback_data="g_wheel"))
     m.add(InlineKeyboardButton("💰 BAKİYE YÜKLE", callback_data="dep"), InlineKeyboardButton("📦 ENVANTER", callback_data="inv"))
@@ -61,7 +63,7 @@ def main_menu(id):
     if int(id) == int(ADMIN):
         m.add(InlineKeyboardButton("👑 ADMİN PANELİ 👑", callback_data="admin_panel"))
     
-    m.add(InlineKeyboardButton(f"💵 {bal}₺ | ✨ {xp} XP", callback_data="stats"))
+    m.add(InlineKeyboardButton(f"💵 {bal}₺ | {tag} | ✨ {xp} XP", callback_data="stats"))
     return m
 
 # --- 🛡️ START ---
@@ -73,104 +75,112 @@ def welcome(m):
         p_ref = m.text.split()[1]
         if p_ref.isdigit() and int(p_ref) != uid: ref_id = int(p_ref)
 
-    # Kullanıcı varsa bakiyesine DOKUNMA, yoksa ekle
     if not db_exe("SELECT id FROM users WHERE id=?", (uid,), 1):
         db_exe("INSERT INTO users (id, balance, ref_by) VALUES (?,?,?)", (uid, 100.0, ref_id))
         if ref_id != 0: bot.send_message(ref_id, "👥 **Tebrikler!** Yeni bir referans kazandın.")
     
-    bot.send_message(uid, "🔱 **Axentra Store V7000**\nBakiye ve Sistemler Sabitlendi!", reply_markup=main_menu(uid))
+    bot.send_message(uid, "🔱 **Axentra Ultimate V11**\nHoş geldin kral! Tüm sistemler aktif.", reply_markup=main_menu(uid))
 
 # --- ⚙️ MASTER CALLBACK ---
 @bot.callback_query_handler(func=lambda c: True)
 def master_callback(c):
-    uid = c.message.chat.id
+    uid, data = c.message.chat.id, c.data
     bot.answer_callback_query(c.id)
-    u_data = db_exe("SELECT balance, ref_by FROM users WHERE id=?", (uid,), 1)[0]
-    bal, ref_id = u_data
+    u_data = db_exe("SELECT balance, is_vip, ref_by FROM users WHERE id=?", (uid,), 1)[0]
+    bal, is_vip, ref_id = u_data
 
-    # --- 🕹️ OYUNLAR ---
-    if c.data == "g_wheel":
+    # --- 💎 VIP KANAL & KEY SİSTEMİ ---
+    if data == "inv":
+        inv = db_exe("SELECT k FROM inv WHERE uid=?", (uid,), 1)
+        if not inv: return bot.send_message(uid, "📦 Envanterin boş kanka.")
+        m = InlineKeyboardMarkup()
+        for x in inv:
+            m.add(InlineKeyboardButton(f"🔑 {x[0]} (KANALA KATIL)", callback_data=f"join_{x[0]}"))
+        bot.send_message(uid, "📦 **VIP Keylerin:**\nKanala giriş linki için keye tıkla:", reply_markup=m)
+
+    elif data.startswith("join_"):
+        key = data.replace("join_", "")
+        try:
+            link = bot.create_chat_invite_link(CHANNEL_ID, member_limit=1, expire_date=int(time.time())+3600).invite_link
+            db_exe("DELETE FROM inv WHERE uid=? AND k=?", (uid, key))
+            db_exe("UPDATE users SET is_vip = 1 WHERE id=?", (uid,))
+            bot.send_message(uid, f"🎉 **VIP KANAL ERİŞİMİ!**\n\n🔑 Key: `{key}`\n🔗 Davet Linkin: {link}\n\n*Link 1 kişiliktir ve 1 saat geçerlidir!*", reply_markup=main_menu(uid))
+        except:
+            bot.send_message(uid, "❌ Hata: Botun kanalda admin olduğundan ve CHANNEL_ID'nin doğruluğundan emin ol!")
+
+    # --- 🕹️ OYUNLAR (VIP ŞANSI DAHİL) ---
+    elif data == "g_wheel":
         if bal < 50: return bot.send_message(uid, "❌ 50₺ lazım!")
         db_exe("UPDATE users SET balance = balance - 50 WHERE id=?", (uid,))
-        win = random.choices([0, 20, 150, 600], weights=[60, 25, 12, 3])[0]
+        w = [60, 25, 12, 3] if not is_vip else [40, 40, 15, 5]
+        win = random.choices([0, 25, 150, 800], weights=w)[0]
         db_exe("UPDATE users SET balance = balance + ? WHERE id=?", (win, uid))
         bot.send_message(uid, f"🎡 Çark döndü: **{win}₺** kazandın!", reply_markup=main_menu(uid))
 
-    elif c.data == "g_slot":
+    elif data == "g_slot":
         if bal < 50: return bot.send_message(uid, "❌ 50₺ lazım!")
         em = ["🍒", "💎", "7️⃣", "🔔"]
         res = [random.choice(em) for _ in range(3)]
         db_exe("UPDATE users SET balance = balance - 50 WHERE id=?", (uid,))
         is_win = res[0] == res[1] == res[2]
-        if is_win: db_exe("UPDATE users SET balance = balance + 800 WHERE id=?", (uid,))
-        bot.send_message(uid, f"🎰 | {res[0]} | {res[1]} | {res[2]} |\n" + ("🔥 **JACKPOT +800₺**" if is_win else "💀 Kaybettin."), reply_markup=main_menu(uid))
+        if is_win: db_exe("UPDATE users SET balance = balance + 1000 WHERE id=?", (uid,))
+        bot.send_message(uid, f"🎰 | {res[0]} | {res[1]} | {res[2]} |\n" + ("🔥 **JACKPOT +1000₺**" if is_win else "💀 Kaybettin."), reply_markup=main_menu(uid))
 
-    elif c.data == "g_coin":
-        m = InlineKeyboardMarkup().add(InlineKeyboardButton("🪙 YAZI", callback_data="yt_y"), InlineKeyboardButton("🪙 TURA", callback_data="yt_t"))
-        bot.send_message(uid, "🪙 Tarafını seç (100₺):", reply_markup=m)
-
-    elif c.data.startswith("yt_"):
-        if bal < 100: return bot.send_message(uid, "❌ Yetersiz bakiye!")
-        sec = "yazi" if c.data == "yt_y" else "tura"
-        son = random.choice(["yazi", "tura"])
+    elif data.startswith("yt_") or data == "g_coin":
+        if data == "g_coin":
+            m = InlineKeyboardMarkup().add(InlineKeyboardButton("🪙 YAZI", callback_data="yt_y"), InlineKeyboardButton("🪙 TURA", callback_data="yt_t"))
+            return bot.send_message(uid, "🪙 Yazı mı Tura mı? (100₺):", reply_markup=m)
+        if bal < 100: return bot.send_message(uid, "❌ 100₺ bakiye lazım!")
+        sec, son = ("yazi" if data == "yt_y" else "tura"), random.choice(["yazi", "tura"])
         db_exe("UPDATE users SET balance = balance - 100 WHERE id=?", (uid,))
         if sec == son:
             db_exe("UPDATE users SET balance = balance + 200 WHERE id=?", (uid,))
-            bot.send_message(uid, f"🪙 **{son.upper()}** geldi! +200₺ Kazandın!", reply_markup=main_menu(uid))
-        else: bot.send_message(uid, f"🪙 **{son.upper()}** geldi! Kaybettin.", reply_markup=main_menu(uid))
+            bot.send_message(uid, f"🪙 **{son.upper()}**! +200₺ kazandın!", reply_markup=main_menu(uid))
+        else: bot.send_message(uid, f"🪙 **{son.upper()}**! Kaybettin.", reply_markup=main_menu(uid))
 
-    elif c.data == "g_roul":
-        m = InlineKeyboardMarkup().add(InlineKeyboardButton("🔴 KIRMIZI", callback_data="rl_r"), InlineKeyboardButton("⚫️ SİYAH", callback_data="rl_b"))
-        bot.send_message(uid, "🔴 Rulet Renk Seç (100₺):", reply_markup=m)
-
-    elif c.data.startswith("rl_"):
-        if bal < 100: return bot.send_message(uid, "❌ Yetersiz bakiye!")
-        bet, win = ("red" if c.data == "rl_r" else "black"), random.choice(["red", "black"])
+    elif data.startswith("rl_") or data == "g_roul":
+        if data == "g_roul":
+            m = InlineKeyboardMarkup().add(InlineKeyboardButton("🔴 KIRMIZI", callback_data="rl_r"), InlineKeyboardButton("⚫️ SİYAH", callback_data="rl_b"))
+            return bot.send_message(uid, "🔴 Rulet Renk Seç (100₺):", reply_markup=m)
+        if bal < 100: return bot.send_message(uid, "❌ 100₺ bakiye lazım!")
+        bet, win = ("red" if data == "rl_r" else "black"), random.choice(["red", "black"])
         db_exe("UPDATE users SET balance = balance - 100 WHERE id=?", (uid,))
         if bet == win:
             db_exe("UPDATE users SET balance = balance + 200 WHERE id=?", (uid,))
-            bot.send_message(uid, f"🎡 **{win.upper()}** geldi! +200₺ kazandın!", reply_markup=main_menu(uid))
-        else: bot.send_message(uid, f"🎡 **{win.upper()}** geldi! Kaybettin.", reply_markup=main_menu(uid))
+            bot.send_message(uid, f"🎡 **{win.upper()}**! +200₺ kazandın!", reply_markup=main_menu(uid))
+        else: bot.send_message(uid, f"🎡 **{win.upper()}**! Kaybettin.", reply_markup=main_menu(uid))
 
-    # --- 🚨 DİĞERLERİ ---
-    elif c.data == "admin_panel" and int(uid) == int(ADMIN):
-        bot.send_message(ADMIN, "👑 ADMİN: `/ver ID Miktar` veya `/kupon KOD Miktar Adet` kullanabilirsin kanka.")
-
-    elif c.data == "dep":
-        bot.send_message(uid, f"🏦 **IBAN:** `TR10 0006 2000 9100 0006 9697 09` \n👤 `{ALICI_AD}`\n📝 Açıklama: `{ACIKLAMA_KODU}`\n📸 Dekont at.")
-
-    elif c.data == "buy":
+    # --- 💰 SİSTEM ---
+    elif data == "buy":
         st = db_exe("SELECT k FROM stock LIMIT 1", f=1)
-        if not st: return bot.send_message(uid, "❌ Stok yok!")
-        if bal < 350: return bot.send_message(uid, "❌ 350₺ lazım!")
+        if not st: return bot.send_message(uid, "❌ Stok kalmadı!")
+        if bal < 350: return bot.send_message(uid, "❌ 350₺ bakiyen yok.")
         key = st[0][0]
         db_exe("DELETE FROM stock WHERE k=?", (key,))
         db_exe("UPDATE users SET balance = balance - 350 WHERE id=?", (uid,))
         db_exe("INSERT INTO inv VALUES (?,?)", (uid, key))
-        if ref_id != 0:
-            db_exe("UPDATE users SET balance = balance + 50 WHERE id=?", (ref_id,))
-            bot.send_message(ref_id, "💰 Ref bonusu: +50₺!")
-        bot.send_message(uid, f"✅ Keyin: `{key}`", reply_markup=main_menu(uid))
+        if ref_id != 0: db_exe("UPDATE users SET balance = balance + 50 WHERE id=?", (ref_id,))
+        bot.send_message(uid, f"✅ Key satın alındı! Envanterine bak kanka.", reply_markup=main_menu(uid))
 
-    elif c.data == "inv":
-        inv = db_exe("SELECT k FROM inv WHERE uid=?", (uid,), 1)
-        bot.send_message(uid, "📦 **Envanter:**\n" + ("\n".join([f"`{x[0]}`" for x in inv]) if inv else "Boş."))
+    elif data == "dep":
+        bot.send_message(uid, f"🏦 **IBAN:** `TR10 0006 2000 9100 0006 9697 09` \n👤 `{ALICI_AD}`\n📝 Açıklama: `{ACIKLAMA_KODU}`\n📸 Dekont at onaylayalım.")
 
-    elif c.data == "ref":
-        bot.send_message(uid, f"👥 **Referans Linkin:**\n`https://t.me/{(bot.get_me().username)}?start={uid}`")
-
-    elif c.data == "coupon_btn":
-        bot.send_message(uid, "🎫 `/kupon KOD` şeklinde yaz kanka.")
+    elif data == "ref":
+        bot.send_message(uid, f"👥 **Ref Linkin:**\n`https://t.me/{(bot.get_me().username)}?start={uid}`")
 
 # --- ⌨️ KOMUTLAR ---
 @bot.message_handler(func=lambda m: True)
 def text_cmds(m):
     uid, text = m.chat.id, m.text
-    if text.startswith("/kupon"):
+    if text.startswith("/ver") and uid == ADMIN:
+        try:
+            _, tid, amt = text.split(); db_exe("UPDATE users SET balance = balance + ? WHERE id=?", (float(amt), tid))
+            bot.send_message(int(tid), f"💰 +{amt}₺ bakiye yüklendi!", reply_markup=main_menu(int(tid)))
+        except: pass
+    elif text.startswith("/kupon"):
         if uid == ADMIN and len(text.split()) > 2:
-            _, c, a, u = text.split()
-            db_exe("INSERT INTO coupons VALUES (?,?,?)", (c.upper(), float(a), int(u)))
-            bot.send_message(ADMIN, "✅ Kupon eklendi.")
+            _, c, a, u = text.split(); db_exe("INSERT INTO coupons VALUES (?,?,?)", (c.upper(), float(a), int(u)))
+            bot.send_message(ADMIN, "✅ Kupon kuruldu.")
         else:
             try:
                 code = text.split()[1].upper()
@@ -178,17 +188,8 @@ def text_cmds(m):
                 if res and res[0][1] > 0:
                     db_exe("UPDATE coupons SET uses = uses - 1 WHERE code=?", (code,))
                     db_exe("UPDATE users SET balance = balance + ? WHERE id=?", (res[0][0], uid))
-                    bot.send_message(uid, f"✅ +{res[0][0]}₺ bakiye eklendi!", reply_markup=main_menu(uid))
-                else: bot.send_message(uid, "❌ Geçersiz kupon.")
+                    bot.send_message(uid, "✅ Kupon bakiye ekledi!", reply_markup=main_menu(uid))
             except: pass
-
-    elif uid == ADMIN and text.startswith("/ver"):
-        try:
-            _, tid, amt = text.split()
-            db_exe("UPDATE users SET balance = balance + ? WHERE id=?", (float(amt), tid))
-            bot.send_message(ADMIN, f"✅ {tid} nolu hesaba {amt}₺ verildi.")
-            bot.send_message(int(tid), f"💰 Hesabınıza {amt}₺ bakiye eklendi!", reply_markup=main_menu(int(tid)))
-        except: pass
 
 # --- 📸 DEKONT ONAY ---
 @bot.message_handler(content_types=['photo'])
@@ -196,7 +197,7 @@ def handle_photo(m):
     if m.chat.id == ADMIN: return
     btn = InlineKeyboardMarkup().add(InlineKeyboardButton("✅ ONAYLA (350₺)", callback_data=f"ok_{m.chat.id}"))
     bot.forward_message(ADMIN, m.chat.id, m.message_id)
-    bot.send_message(ADMIN, f"🕵️ Yeni Dekont! ID: `{m.chat.id}`", reply_markup=btn)
+    bot.send_message(ADMIN, f"🕵️ Dekont! ID: `{m.chat.id}`", reply_markup=btn)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("ok_"))
 def confirm(c):
@@ -211,4 +212,3 @@ if __name__ == "__main__":
     while True:
         try: bot.infinity_polling(timeout=30)
         except: time.sleep(5)
-            
