@@ -13,7 +13,7 @@ def run_flask():
 # --- 👑 KRİTİK AYARLAR ---
 TOKEN = "8723920846:AAEVvBVge4VRrEmzGPcmBmYd9LlFqZvoNz4"
 ADMIN = 8561815348 
-CHANNEL_ID = -1002345678901 # <--- VIP KANAL ID'SİNİ BURAYA YAZ KANKA
+CHANNEL_ID = -1003577335395 # <--- VIP KANAL ID'SİNİ BURAYA YAZ KANKA
 ALICI_AD = "Garanti Ödeme ve Elektronik Para Hizmetleri A.Ş."
 ACIKLAMA_KODU = "TAMİ7987919953449959"
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
