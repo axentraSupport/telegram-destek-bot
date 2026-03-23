@@ -1,13 +1,26 @@
+import os
+import threading
+import http.server
+import socketserver
 import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
+# --- RENDER İÇİN HAYALET SUNUCU (TIMEOUT HATASINI ÇÖZER) ---
+def run_dummy_server():
+    # Render bir portun açık olduğunu görmezse botu kapatır.
+    # Bu kısım Render'a "bak ben buradayım" der ve 7/24 uyanık tutar.
+    port = int(os.environ.get("PORT", 10000))
+    handler = http.server.SimpleHTTPRequestHandler
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        httpd.serve_forever()
+
 # --- EKİP AYARLARI ---
-# 1. BotFather'dan aldığın tokeni buraya yapıştır:
+# BotFather'dan aldığın en güncel tokeni buraya yapıştır:
 BOT_TOKEN = "8776751359:AAHA80v4jtkNWWumR5dOOJBInsHcyD4vpTQ"
 
-# 2. Yönetici ID Listesi (Örnek olarak 4 tane yazdım, bunları kendi ID'lerinle değiştir):
-ADMIN_IDS = [8561815348, 111111111, 222222222, 333333333] 
+# Kendi ID'ni ve ekiptekilerin ID'lerini buraya ekle:
+ADMIN_IDS = [8561815348] 
 
 # Sohbet takibi için hafıza
 user_sessions = {} 
@@ -50,7 +63,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>• Klan Alım Satım</b>\n"
             "<b>• Random Hesaplar</b>\n"
             "<b>• Yüksek Ranklı Hesaplar</b>\n\n"
-            "<b>Gibi Ürünlerimizi İlgilenirseniz Kanala İstek Atmanız Yeterlidir Şimdiden Hoşgeldiniz!</b>\n\n"
+            "<b>Gibi Ürünlerimizle İlgilenirseniz Kanala İstek Atmanız Yeterlidir Şimdiden Hoşgeldiniz!</b>\n\n"
             "https://t.me/AxentraAccounts"
         )
         await update.message.reply_text(msg, parse_mode="HTML", disable_web_page_preview=True)
@@ -67,52 +80,48 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- CANLI DESTEK TRAFİĞİ (EKİP YÖNETİMİ) ---
     
-    # KULLANICIDAN GELEN MESAJ (TÜM ADMİNLERE İLET)
+    # KULLANICIDAN GELEN MESAJ (ADMİNLERE İLET)
     if chat_id not in ADMIN_IDS:
-        if user.id not in user_sessions:
-            user_sessions[user.id] = True
-            info_msg = (
-                f"📩 <b>YENİ MÜŞTERİ BAĞLANDI</b>\n"
-                f"👤 <b>İsim:</b> {user.first_name}\n"
-                f"🆔 <b>ID:</b> <code>{user.id}</code>\n"
-                f"💬 <b>Mesaj:</b> {text}"
-            )
-        else:
-            info_msg = f"👤 <b>{user.first_name}:</b> {text}"
+        info_msg = (
+            f"📩 <b>YENİ MESAJ</b>\n"
+            f"👤 <b>İsim:</b> {user.first_name}\n"
+            f"🆔 <b>ID:</b> <code>{user.id}</code>\n"
+            f"💬 <b>Mesaj:</b> {text}"
+        )
             
         for admin_id in ADMIN_IDS:
             try:
                 await context.bot.send_message(chat_id=admin_id, text=info_msg, parse_mode="HTML")
             except:
                 continue
+        
+        await update.message.reply_text("<b>✅ Mesajınız iletildi, ekibimiz birazdan dönüş yapacak.</b>", parse_mode="HTML")
 
     # ADMİNDEN GELEN MESAJ (KULLANICIYA CEVAP VER)
     else:
         if update.message.reply_to_message:
             try:
                 reply_text = update.message.reply_to_message.text
-                
-                # ID'yi mesajdan çek (HTML formatına uygun)
-                if "🆔 ID:" in reply_text:
-                    target_id = int(reply_text.split("🆔 ID: ")[1].split("\n")[0].strip())
-                    context.bot_data[f'active_target_{chat_id}'] = target_id
-                else:
-                    # Daha önceki kısa mesajı yanıtlıyorsa hafızayı kullan
-                    target_id = context.bot_data.get(f'active_target_{chat_id}')
-                
-                if target_id:
+                import re
+                # ID'yi mesajdan düzenli ifade ile çekiyoruz
+                match = re.search(r"ID: (\d+)", reply_text)
+                if match:
+                    target_id = int(match.group(1))
                     await context.bot.send_message(chat_id=target_id, text=f"🎧 <b>Destek Ekibi:</b> {text}", parse_mode="HTML")
-                    await update.message.reply_text(f"✅ <b>Mesaj iletildi (Müşteri ID: {target_id})</b>", parse_mode="HTML")
+                    await update.message.reply_text(f"✅ <b>Mesaj iletildi (ID: {target_id})</b>", parse_mode="HTML")
                 else:
-                    await update.message.reply_text("⚠️ <b>Hata: Lütfen ID içeren ilk mesajı yanıtla.</b>", parse_mode="HTML")
+                    await update.message.reply_text("⚠️ <b>Hata: Lütfen ID içeren mesajı yanıtla.</b>", parse_mode="HTML")
             except Exception as e:
                 await update.message.reply_text(f"⚠️ <b>Hata:</b> {e}", parse_mode="HTML")
 
 async def get_my_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Adminlerin kendi ID'lerini öğrenmesi için."""
     await update.message.reply_text(f"🆔 <b>Senin Chat ID'n:</b> <code>{update.message.chat_id}</code>", parse_mode="HTML")
 
 def main():
+    # 1. Hayalet sunucuyu arka planda başlat (Render için)
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+    
+    # 2. Botu başlat
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
@@ -124,4 +133,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+                    
