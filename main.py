@@ -4,7 +4,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 # --- EKİP AYARLARI ---
 # 1. BotFather'dan aldığın tokeni buraya yapıştır:
-BOT_TOKEN = "8776751359:AAE3FWF5KfXRbhissmHYLxKoObU_uG1LM84"
+BOT_TOKEN = "8776751359:AAHA80v4jtkNWWumR5dOOJBInsHcyD4vpTQ"
 
 # 2. Yönetici ID Listesi (Örnek olarak 4 tane yazdım, bunları kendi ID'lerinle değiştir):
 ADMIN_IDS = [8561815348, 111111111, 222222222, 333333333] 
